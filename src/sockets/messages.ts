@@ -32,13 +32,14 @@ import { Socket } from "socket.io";
 export const sendMessage = (socket:Socket)=>{
   return async({_id,participantId,chatId,info}:onSendMessageType) =>{
     try {
-      if ( !_id || !chatId || !participantId || participantId == _id||!info || info.length<1) {
-        throw new Error("failed");
+      if ( !_id || !chatId || !participantId || participantId == _id||!info || info?.length<1) {
+        SocketErrorHander(socket.id,'send-message',"fields are not provided");
+        return;
       }
 
       const Id = await getRedisValue("active:"+participantId);
 
-      await Promise.all(info.map(async(mess:MessageInfoType) => {
+       Promise.all(info?.map(async(mess:MessageInfoType) => {
           let fld:{filename:string,filePath:string,buffer:Buffer,messageId?:string}|null = null;
           const status = Id?'unread':'sent' as 'unread'|'sent'; 
           const newinfo = {chatId:chatId,sender:_id,text:mess.text,time:mess.time,type:mess.type,attach:mess.attach,status};
@@ -58,7 +59,7 @@ export const sendMessage = (socket:Socket)=>{
               );
               fld = {filename:flname,filePath,buffer};
             } catch  {
-               SocketErrorHander(socket.id,'message',"error in sending file");
+               SocketErrorHander(socket.id,'send-file-message',"error in sending file");
             }
             
 
@@ -78,8 +79,8 @@ export const sendMessage = (socket:Socket)=>{
           }
       }));
 
-    } catch  {
-       SocketErrorHander(socket.id,'message',"error in sending message");
+    } catch {
+       SocketErrorHander(socket.id,'send-message',"error in sending catch message");
     }
   };
 };
@@ -113,7 +114,8 @@ export const forwardMessage = (socket:Socket)=>{
   return async({_id,participantId,chatId,info}:onForwardingMessageType) =>{
     try {
       if ( !_id || !chatId || !participantId || participantId == _id||!info || info.length<1) {
-        throw new Error("failed");
+          SocketErrorHander(socket.id,'forword-message',"data not provided properly");
+          return;
       }
 
       const Id = await getRedisValue("active:"+participantId);
@@ -171,10 +173,10 @@ export const readMessages = (socket:Socket)=>{
         await MessageModel.updateMany({chatId,sender:contactId},{status:'read'});
         const senderId = await getRedisValue("active:"+contactId);
         if (senderId) {
-           io.to(senderId).emit("seen-messages",chatId);
+           io.to(senderId).emit("read-messages",chatId);
         }
       } catch {
-        SocketErrorHander(socket.id,'call',"data not provided properly");
+        SocketErrorHander(socket.id,'read-message',"data not provided properly");
       }
     }
   };
@@ -206,8 +208,9 @@ export const deleteMessage = (socket:Socket)=>{
   return async({_id,contactId,messageIdList,chatId}:onDeleteMessageType) =>{
     
       try {
-        if (!_id || !(messageIdList.length>0) || !contactId) {
-          throw new Error("data not provided");
+        if (!_id || !messageIdList || !(messageIdList?.length>0) || !contactId) {
+          SocketErrorHander(socket.id,'delete-message',"data not provided properly");
+          return;
         }
           const Messages = await MessageModel.find({
             chatId,
@@ -236,7 +239,7 @@ export const deleteMessage = (socket:Socket)=>{
          
            
       } catch {
-        SocketErrorHander(socket.id,'call',"data not provided properly");
+        SocketErrorHander(socket.id,'delete-message',"error while deleting");
       }
   };  
 };
