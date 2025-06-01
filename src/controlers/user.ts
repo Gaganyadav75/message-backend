@@ -420,20 +420,19 @@ export const updateBio = TryCatchError(async(req,res) =>{
 
 
 
-
 /**
  * @function updateProfile
- * @description Updates the profile picture of a user. Deletes the old profile image from the storage service if it exists, then updates the user's profile and fileId in the database.
+ * @description Updates the user's profile picture and fileId. Deletes the old profile image from storage if it exists.
  *
  * @param {Object} req - Express request object.
- * @param {Object} req.body - Contains new profile info and the authenticated user data.
- * @param {string} req.body.profile - The new profile image URL or path.
- * @param {string} req.body.fileId - The new file identifier for the uploaded profile image.
- * @param {Object} req.body.user - The authenticated user object.
- * @param {string} req.body.user._id - The authenticated user's ID.
- * @param {string} req.body.user.fileId - The previous profile image's file ID.
- * @param {string} req.body.user.profile - The previous profile image URL or path.
- * @param {Object} req.file - The uploaded file object (containing the new profile image).
+ * @param {Object} req.body - Contains the new profile URL/path, new fileId, and authenticated user object.
+ * @param {string} req.body.profile - New profile image URL or path.
+ * @param {string} req.body.fileId - New file identifier for the uploaded profile image.
+ * @param {Object} req.body.user - Authenticated user object.
+ * @param {string} req.body.user._id - User's ID.
+ * @param {string} req.body.user.fileId - Previous profile image's file ID.
+ * @param {string} req.body.user.profile - Previous profile image URL or path.
+ * @param {Object} req.file - Uploaded file object (new profile image).
  *
  * @param {Object} res - Express response object.
  *
@@ -442,86 +441,83 @@ export const updateBio = TryCatchError(async(req,res) =>{
  * @returns {Object} JSON response confirming profile update with the new profile and fileId.
  */
 
-
-
-export const updateProfile = TryCatchError(async(req,res) =>{
+export const updateProfile = TryCatchError(async (req, res) => {
     const newProfile = req.body.profile;
     const newFileId = req.body.fileId;
-    const file = req.file
-    const {_id , fileId,profile}= req.body.user;
+    const file = req.file;
+    const { _id, fileId, profile } = req.body.user;
 
-    if (!file||!req.body.user||!file.filename) {
-        throw new ErrorHandler("something went wrong",unacceptable)
+    if (!file || !req.body.user || !file.filename) {
+        throw new ErrorHandler("something went wrong", unacceptable);
     }
 
     if (profile && fileId) {
-
-        DeleteFromImageKit(fileId)
-
-    }
-    
-
-  
-   await UsersModel.updateOne({_id},{profile:newProfile,fileId:newFileId})
-
-    return res.json({success:true,message:"profile updated!",user:{profile:newProfile,fileId:newFileId}})
-})
-
-
-
-
-export const updateUserData = TryCatchError(async(req,res) =>{
-
-    const {tokenData,email,bio,username} = req.body
-    
-    if (!tokenData || !tokenData._id ) {
-        throw new ErrorHandler("Required Feilds Not Entered",unacceptable)
+        DeleteFromImageKit(fileId);
     }
 
-    if(email){
-        let other = await UsersModel.findOne({email})
-        if(other){
-            throw new ErrorHandler("Email already exists",unacceptable);
+    await UsersModel.updateOne({ _id }, { profile: newProfile, fileId: newFileId });
+
+    return res.json({ success: true, message: "profile updated!", user: { profile: newProfile, fileId: newFileId } });
+});
+
+
+
+
+/**
+ * @function updateUserData
+ * @description Updates the user's email, username, or bio. If email is changed, sends a verification email and marks user as unverified.
+ *
+ * @param {Object} req - Express request object.
+ * @param {Object} req.body - Contains tokenData and fields to update (email, username, bio).
+ * @param {Object} req.body.tokenData - Authenticated user's token data.
+ * @param {string} req.body.tokenData._id - User's ID.
+ * @param {string} [req.body.email] - New email address.
+ * @param {string} [req.body.username] - New username.
+ * @param {string} [req.body.bio] - New bio.
+ *
+ * @param {Object} res - Express response object.
+ *
+ * @throws {ErrorHandler} If required fields are missing or if email/username already exists.
+ *
+ * @returns {Object} JSON response confirming the update and the updated field.
+ */
+export const updateUserData = TryCatchError(async (req, res) => {
+    const { tokenData, email, bio, username } = req.body;
+
+    if (!tokenData || !tokenData._id) {
+        throw new ErrorHandler("Required Feilds Not Entered", unacceptable);
+    }
+
+    if (email) {
+        let other = await UsersModel.findOne({ email });
+        if (other) {
+            throw new ErrorHandler("Email already exists", unacceptable);
         }
-        const token = generateToken({_id:String(tokenData._id),username:tokenData.username},"1d")
-        await UsersModel.updateOne({_id:tokenData._id},{email,verified:false,token})
+        const token = generateToken({ _id: String(tokenData._id), username: tokenData.username }, "1d");
+        await UsersModel.updateOne({ _id: tokenData._id }, { email, verified: false, token });
         const mailOptions = {
-            to: email, // Recipient email address
-            subject: 'HII HELLO VERIFICATION EMAIL', // Subject line
-            html:VerificationEmail(token,email)// Email body
+            to: email,
+            subject: 'HII HELLO VERIFICATION EMAIL',
+            html: VerificationEmail(token, email)
         } as EmailSendingOption;
 
-        await SendEmail(mailOptions)
-        setCookieToFrontend(res,"token",'',0)
-        return res.json({success:true,message:"verification email sent!",data:{email}})
-    }
-
-    else if(username){
-        let other = await UsersModel.findOne({username})
-        if(other){
-            throw new ErrorHandler("uername already exists",unacceptable);
+        await SendEmail(mailOptions);
+        setCookieToFrontend(res, "token", '', 0);
+        return res.json({ success: true, message: "verification email sent!", data: { email } });
+    } else if (username) {
+        let other = await UsersModel.findOne({ username });
+        if (other) {
+            throw new ErrorHandler("uername already exists", unacceptable);
         }
-        await UsersModel.updateOne({_id:tokenData._id},{username})
-        return res.json({success:true,message:"username updated successfully",data:{username}})
+        await UsersModel.updateOne({ _id: tokenData._id }, { username });
+        return res.json({ success: true, message: "username updated successfully", data: { username } });
+    } else if (bio) {
+        await UsersModel.updateOne({ _id: tokenData._id }, { bio });
+        return res.json({ success: true, message: "bio updated successfully", data: { bio } });
+    } else {
+        throw new ErrorHandler("Required fields not provided", unacceptable);
     }
-
-    else if(bio){
-        await UsersModel.updateOne({_id:tokenData._id},{bio})
-        return res.json({success:true,message:"bio updated successfully",data:{bio}})
-    }
-    
-    else {
-        throw new ErrorHandler("Required fields not provided",unacceptable)
-    }
-    
-
-   
- 
-    
-
-    
-})
-
+});
 
 
 
@@ -632,8 +628,20 @@ export const searchUser = TryCatchError(async(req,res) =>{
 
 
 
-
-
+/**
+ * @function forgotSendCode
+ * @description Sends a password reset OTP to the user's email if the account exists and is verified. Limits resend attempts.
+ *
+ * @param {Object} req - Express request object.
+ * @param {Object} req.query - Query parameters.
+ * @param {string} req.query.email - The user's email address.
+ *
+ * @param {Object} res - Express response object.
+ *
+ * @throws {ErrorHandler} If the email is missing, user does not exist, email is not verified, or resend attempts are exceeded.
+ *
+ * @returns {Object} JSON response confirming that the password reset OTP was sent.
+ */
 export const forgotSendCode = TryCatchError(async(req,res) =>{
 
       const {email}  =  req.query;
@@ -675,13 +683,22 @@ export const forgotSendCode = TryCatchError(async(req,res) =>{
    
 })
 
-
-
-
-
-
-
-
+/**
+ * @function forgotCodeVerify
+ * @description Verifies the OTP sent to the user's email and resets the password if valid. Limits verification attempts and prevents reusing the previous password.
+ *
+ * @param {Object} req - Express request object.
+ * @param {Object} req.body - Request body.
+ * @param {string} req.body.email - The user's email address.
+ * @param {string} req.body.otp - The OTP sent to the user's email.
+ * @param {string} req.body.password - The new password to set.
+ *
+ * @param {Object} res - Express response object.
+ *
+ * @throws {ErrorHandler} If required fields are missing, OTP or password format is invalid, user does not exist, email is not verified, attempts are exceeded, password is reused, or OTP is incorrect.
+ *
+ * @returns {Object} JSON response confirming that the password was reset.
+ */
 export const forgotCodeVerify = TryCatchError(async(req,res) =>{
 
       const {password,otp,email} = req.body;
