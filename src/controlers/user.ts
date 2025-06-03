@@ -7,7 +7,7 @@ import {  SALT } from "../utils/utils-variables.js";
 import { generateToken, setCookieToFrontend, verifyToken } from "../utils/jwt-functions.js";
 import { generateOTP, OtpCodeEmail, SendEmail, VerificationEmail } from "../utils/sendEmail.js";
 import { EmailSendingOption } from "../types/types.js";
-
+import fs from 'fs'
 import { DeleteFromImageKit } from "../utils/ImageUplod.js";
 
 // it will get All the User and return it to frontend
@@ -450,7 +450,7 @@ export const updateProfile = TryCatchError(async (req, res) => {
     if (!file || !req.body.user || !file.filename) {
         throw new ErrorHandler("something went wrong", unacceptable);
     }
-
+    if(!profile.startsWith('http'))fs.unlink(profile,()=>{});
     if (profile && fileId) {
         DeleteFromImageKit(fileId);
     }
